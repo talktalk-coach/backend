@@ -1,0 +1,45 @@
+spring:
+  config:
+    activate:
+      on-profile: local
+    import: optional:file:.env[.properties]   # .env 파일 자동 로딩
+
+  datasource:
+    url: jdbc:mysql://localhost:3306/talktalkcoach
+    username: ${DB_USERNAME:root}
+    password: ${DB_PASSWORD:yunji32274}
+    driver-class-name: com.mysql.cj.jdbc.Driver
+
+  jpa:
+    hibernate:
+      ddl-auto: update
+    show-sql: true
+
+  mail:
+    host: localhost
+    port: 1025
+    username: ''
+    password: ''
+    properties:
+      mail.smtp.auth: false
+      mail.smtp.starttls.enable: false
+
+jwt:
+  secret: local-dev-secret-key-must-be-at-least-32-characters-long
+  access-token-expiry: 120960000
+  refresh-token-expiry: 1209600000
+
+azure:
+  speech:
+    key: ${AZURE_SPEECH_KEY:your-azure-key-here}
+    region: koreacentral
+
+openai:
+  api:
+    key: ${OPENAI_API_KEY:your-openai-key-here}  # IntelliJ 환경변수에서 주입
+
+logging:
+  level:
+    com.codit.talktalkcoach: DEBUG
+    org.hibernate.SQL: DEBUG
+    org.hibernate.type.descriptor.sql: TRACE

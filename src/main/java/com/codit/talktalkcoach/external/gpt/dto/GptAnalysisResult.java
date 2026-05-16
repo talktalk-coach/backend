@@ -1,0 +1,46 @@
+package com.codit.talktalkcoach.external.gpt.dto;
+
+import com.fasterxml.jackson.annotation.JsonIgnoreProperties;
+import lombok.*;
+
+import java.util.List;
+
+@Getter
+@Builder
+@NoArgsConstructor
+@AllArgsConstructor
+@JsonIgnoreProperties(ignoreUnknown = true)
+public class GptAnalysisResult {
+
+    private String scoringRationale;
+
+    @Setter
+    private String detectedCategory;
+
+    // sentenceScore 제거
+    private Double vocabularyScore;
+    private Double logicScore;
+    private Double structureScore;
+
+    @Setter
+    private Integer wordCount;
+
+    private String vocabularyFeedback;
+    private String sentenceStructureFeedback;
+    private String logicFeedback;
+    private String overallFeedback;
+
+    private List<ImprovementItem> customPlan;
+
+    @Getter
+    @Setter
+    @NoArgsConstructor
+    @AllArgsConstructor
+    @Builder
+    @JsonIgnoreProperties(ignoreUnknown = true)
+    public static class ImprovementItem {
+        private String title;
+        private String description;
+        private String category;
+    }
+}
