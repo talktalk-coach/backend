@@ -1,7 +1,7 @@
 plugins {
     id 'java'
-    id 'org.springframework.boot' version '4.0.5'
-    id 'io.spring.dependency-management' version '1.1.7'
+    id 'org.springframework.boot' version '3.3.5'
+    id 'io.spring.dependency-management' version '1.1.6'
 }
 
 group = 'com.codit'
@@ -10,7 +10,7 @@ description = 'TalkTalkCoach'
 
 java {
     toolchain {
-        languageVersion = JavaLanguageVersion.of(17)
+        languageVersion = JavaLanguageVersion.of(21)
     }
 }
 
@@ -25,21 +25,55 @@ repositories {
 }
 
 dependencies {
+    // ── Spring Boot Core ──────────────────────────────────────────────────────
+    implementation 'org.springframework.boot:spring-boot-starter-web'
     implementation 'org.springframework.boot:spring-boot-starter-data-jpa'
-    implementation 'org.springframework.boot:spring-boot-starter-jdbc'
+    implementation 'org.springframework.boot:spring-boot-starter-validation'
+    implementation 'org.springframework.boot:spring-boot-starter-mail'
+
+    // ── Swagger ───────────────────────────────────────────────────────────────
+    implementation 'org.springdoc:springdoc-openapi-starter-webmvc-ui:2.2.0'
+
+    // ── Security & OAuth2 ─────────────────────────────────────────────────────
     implementation 'org.springframework.boot:spring-boot-starter-security'
-    implementation 'org.springframework.boot:spring-boot-starter-security-oauth2-client'
-    implementation 'org.springframework.boot:spring-boot-starter-webmvc'
-    compileOnly 'org.projectlombok:lombok'
-    developmentOnly 'org.springframework.boot:spring-boot-devtools'
+    implementation 'org.springframework.boot:spring-boot-starter-oauth2-client'
+
+    // ── JWT ──────────────────────────────────────────────────────────────────
+    implementation 'io.jsonwebtoken:jjwt-api:0.12.6'
+    runtimeOnly    'io.jsonwebtoken:jjwt-impl:0.12.6'
+    runtimeOnly    'io.jsonwebtoken:jjwt-jackson:0.12.6'
+
+    // ── .env 파일 로딩 ────────────────────────────────────────────────────────
+    implementation 'me.paulschwarz:spring-dotenv:4.0.0'
+
+    // ── Azure Speech SDK (로컬 JAR) ───────────────────────────────────────────
+    implementation fileTree(dir: 'libs', include: ['*.jar'])
+
+    // ── Database ─────────────────────────────────────────────────────────────
     runtimeOnly 'com.mysql:mysql-connector-j'
+
+    // ── Jackson ──────────────────────────────────────────────────────────────
+    implementation 'com.fasterxml.jackson.core:jackson-databind'
+    implementation 'com.fasterxml.jackson.datatype:jackson-datatype-jsr310'
+
+    // ── AWS S3 ──────────────────────────────────────────────────
+    implementation 'software.amazon.awssdk:s3:2.25.16'
+    implementation 'software.amazon.awssdk:auth:2.25.16'
+
+    // ── File Upload ───────────────────────────────────────────────────────────
+    implementation 'commons-io:commons-io:2.16.1'
+
+    // ── Lombok ───────────────────────────────────────────────────────────────
+    compileOnly    'org.projectlombok:lombok'
     annotationProcessor 'org.projectlombok:lombok'
-    testImplementation 'org.springframework.boot:spring-boot-starter-data-jpa-test'
-    testImplementation 'org.springframework.boot:spring-boot-starter-jdbc-test'
-    testImplementation 'org.springframework.boot:spring-boot-starter-security-oauth2-client-test'
-    testImplementation 'org.springframework.boot:spring-boot-starter-security-test'
-    testImplementation 'org.springframework.boot:spring-boot-starter-webmvc-test'
-    testRuntimeOnly 'org.junit.platform:junit-platform-launcher'
+
+    // ── Dev Tools ────────────────────────────────────────────────────────────
+    developmentOnly 'org.springframework.boot:spring-boot-devtools'
+
+    // ── Test ─────────────────────────────────────────────────────────────────
+    testImplementation 'org.springframework.boot:spring-boot-starter-test'
+    testImplementation 'org.springframework.security:spring-security-test'
+    testRuntimeOnly    'org.junit.platform:junit-platform-launcher'
 }
 
 tasks.named('test') {
