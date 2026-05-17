@@ -130,7 +130,9 @@ public class SpeechService {
     // ─── 삭제 ────────────────────────────────────────────────────────────
     @Transactional
     public void delete(Long speechId, Long userId) {
-        Speech speech = getSpeechOfUser(speechId, userId);
+        Speech speech = (userId != null)
+                ? getSpeechOfUser(speechId, userId)
+                : speechRepository.findById(speechId).orElseThrow(SpeechNotFoundException::new);
         speechRepository.delete(speech);
     }
 

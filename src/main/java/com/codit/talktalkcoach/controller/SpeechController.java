@@ -1,8 +1,10 @@
 package com.codit.talktalkcoach.controller;
 
+import com.codit.talktalkcoach.domain.entity.User;
 import com.codit.talktalkcoach.domain.enums.SpeechCategory;
 import com.codit.talktalkcoach.dto.response.speech.SpeechResultResponse;
 import com.codit.talktalkcoach.dto.response.speech.SpeechStatusResponse;
+import com.codit.talktalkcoach.repository.UserRepository;
 import com.codit.talktalkcoach.security.CustomUserDetails;
 import com.codit.talktalkcoach.service.SpeechService;
 import io.swagger.v3.oas.annotations.Operation;
@@ -25,55 +27,49 @@ public class SpeechController {
 
     private final SpeechService speechService;
 
-    @Operation(
-            summary = "스피치 분석 요청",
-            description = """
-                    WAV 파일을 업로드하면 Azure STT + GPT 분석을 비동기로 시작합니다.
-                    응답으로 speechId를 반환하며, 이후 /status/{speechId}로 진행 상황을 확인하세요.
-                    
-                    **오디오 파일 요구사항**: WAV PCM, 16kHz, 16bit, mono
-                    
-                    **category**:
-                    - PRESENTATION : 발표형 (기본값, 모든 레벨 허용)
-                    - SPEECH       : 설득·연설형 (ELEM_5_6 이상)
-                    - DEBATE       : 토론·논증형 (ELEM_5_6 이상)
-                    
-                    초1~2, 초3~4 레벨은 PRESENTATION 으로 자동 보정됩니다.
-                    """
-    )
+    // [임시] 인증 없이 테스트할 때 기본 유저 조회용
+    // TODO: 운영 전 제거
+    private final UserRepository userRepository;
+    private static final Long DEFAULT_TEST_USER_ID = 1L;
+
+    @Operation(summary = "스피치 분석 요청")
     @PostMapping(value = "/azure", consumes = MediaType.MULTIPART_FORM_DATA_VALUE)
     public ResponseEntity<Long> uploadAndAnalyze(
             @AuthenticationPrincipal CustomUserDetails userDetails,
-            @Parameter(description = "WAV 오디오 파일 (PCM 16kHz 16bit mono)")
+            @Parameter(description = "WAV 오디오 파일")
             @RequestPart("audio") MultipartFile audio,
             @Parameter(description = "스피치 제목")
             @RequestParam("title") String title,
             @Parameter(description = "녹음 시간 (초 단위)")
             @RequestParam("duration") int duration,
-            @Parameter(description = "스피치 유형 (PRESENTATION | SPEECH | DEBATE), 기본값: PRESENTATION")
+            @Parameter(description = "스피치 유형 (PRESENTATION | SPEECH | DEBATE)")
             @RequestParam(value = "category", defaultValue = "PRESENTATION") SpeechCategory category) {
 
-        Long speechId = speechService.uploadAndAnalyze(
-                userDetails.getUser(), title, audio, duration, category);
+        // [임시] 토큰 없으면 기본 테스트 유저 사용
+        // TODO: 운영 전 → User user = userDetails.getUser(); 로 교체 후 헬퍼 메서드 제거
+        User user = resolveUser(userDetails);
+        Long speechId = speechService.uploadAndAnalyze(user, title, audio, duration, category);
         return ResponseEntity.accepted().body(speechId);
     }
 
-    @Operation(summary = "분석 상태 조회", description = "PROCESSING / COMPLETED / FAILED 중 하나를 반환합니다.")
+    @Operation(summary = "분석 상태 조회")
     @GetMapping("/status/{speechId}")
     public ResponseEntity<SpeechStatusResponse> getStatus(
             @AuthenticationPrincipal CustomUserDetails userDetails,
             @PathVariable Long speechId) {
-        // 개발 모드: userDetails가 null이면 userId 없이 speechId만으로 조회
+        // userId null 허용 (SpeechService 내부에서 처리)
         Long userId = (userDetails != null) ? userDetails.getUserId() : null;
         return ResponseEntity.ok(speechService.getStatus(speechId, userId));
     }
 
-    @Operation(summary = "분석 결과 조회", description = "8개 항목 점수 + GPT 피드백 + STT 전사 텍스트를 반환합니다.")
+    @Operation(summary = "분석 결과 조회")
     @GetMapping("/results/{speechId}")
     public ResponseEntity<SpeechResultResponse> getResult(
             @AuthenticationPrincipal CustomUserDetails userDetails,
             @PathVariable Long speechId) {
-        return ResponseEntity.ok(speechService.getResult(speechId, userDetails.getUserId()));
+        // [임시] 토큰 없으면 userId=null → SpeechService에서 speechId만으로 조회
+        Long userId = (userDetails != null) ? userDetails.getUserId() : null;
+        return ResponseEntity.ok(speechService.getResult(speechId, userId));
     }
 
     @Operation(summary = "결과 공유 URL 반환")
@@ -89,7 +85,18 @@ public class SpeechController {
     public ResponseEntity<Void> delete(
             @AuthenticationPrincipal CustomUserDetails userDetails,
             @PathVariable Long speechId) {
-        speechService.delete(speechId, userDetails.getUserId());
+        Long userId = (userDetails != null) ? userDetails.getUserId() : null;
+        speechService.delete(speechId, userId);
         return ResponseEntity.noContent().build();
+    }
+
+    // ─── [임시] 인증 없는 테스트용 유저 해석 헬퍼 ──────────────────────────
+    // TODO: 운영 전 이 메서드 전체 제거
+    private User resolveUser(CustomUserDetails userDetails) {
+        if (userDetails != null) return userDetails.getUser();
+        return userRepository.findById(DEFAULT_TEST_USER_ID)
+                .orElseThrow(() -> new RuntimeException(
+                        "테스트용 기본 유저(ID=" + DEFAULT_TEST_USER_ID + ")가 없습니다. " +
+                        "POST /api/test/quick-signup 으로 먼저 유저를 생성해주세요."));
     }
 }
