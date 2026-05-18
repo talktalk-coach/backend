@@ -58,7 +58,7 @@ aws:
 # JWT 설정
 jwt:
   secret: ${JWT_SECRET}
-  access-token-expiry: 1800000      # 30분 (ms)
+  access-token-expiry: 604800000      # 7일 (ms)
   refresh-token-expiry: 1209600000  # 14일 (ms)
 
 # Azure Speech API
