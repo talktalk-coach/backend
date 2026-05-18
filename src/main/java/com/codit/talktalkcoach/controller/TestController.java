@@ -27,7 +27,9 @@ import java.time.LocalDateTime;
 @RestController
 @RequestMapping("/api/test")
 @RequiredArgsConstructor
-@Profile("local")
+// [임시] 배포 환경 테스트용으로 prod, default 프로파일 추가
+// TODO: 테스트 완료 후 @Profile("local") 으로 되돌릴 것
+@Profile({"local", "prod", "default"})
 public class TestController {
 
     private final GptClient gptClient;

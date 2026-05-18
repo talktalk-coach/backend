@@ -48,3 +48,23 @@ ALTER TABLE monthly_stats ADD COLUMN stat_month VARCHAR(7) NOT NULL DEFAULT '';
 UPDATE monthly_stats SET stat_month = year_month;
 ALTER TABLE monthly_stats DROP COLUMN year_month;
 ALTER TABLE monthly_stats ADD CONSTRAINT uq_monthly_stats_user_stat_month UNIQUE (user_id, stat_month);
+
+INSERT INTO users (
+    email,
+    password,
+    nickname,
+    provider,
+    target_level,
+    is_under14,
+    created_at,
+    updated_at
+) VALUES (
+             'test@talktalk.com',
+             '$2a$10$N9qo8uLOickgx2ZMRZoMyeIjZAgcfl7p92ldGxad68LJZdL17lhWy',
+             '테스트유저',
+             'LOCAL',
+             'MIDDLE_1_2',
+             false,
+             NOW(),
+             NOW()
+         );
