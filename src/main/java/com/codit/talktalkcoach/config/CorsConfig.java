@@ -15,8 +15,13 @@ public class CorsConfig {
     public CorsFilter corsFilter() {
         CorsConfiguration config = new CorsConfiguration();
 
-        //프론트 url 넣기
-        config.setAllowedOriginPatterns(List.of("*"));  // 임시: 모든 Origin 허용
+        // ── 허용할 Origin ───────────────────────────────────────────────────
+        config.setAllowedOrigins(List.of(
+                "http://localhost:3000",    // 프론트 로컬 개발 서버 (Next.js 기본 포트)
+                "http://127.0.0.1:3000"    // 동일한 로컬 환경 (IP 방식)
+                // TODO: 운영 도메인 확정 시 아래 추가
+                // "https://talktalkcoach.com"
+        ));
 
         // ── 허용할 HTTP 메서드 ──────────────────────────────────────────────
         config.setAllowedMethods(List.of(
@@ -24,11 +29,9 @@ public class CorsConfig {
         ));
 
         // ── 허용할 헤더 ────────────────────────────────────────────────────
-        //config.setAllowedHeaders(List.of("*"));
-        config.setAllowedHeaders(List.of("https://talktalkcoach.vercel.app/auth/landing"));
+        config.setAllowedHeaders(List.of("*"));
 
-        // ── 인증 정보 포함 여부 (쿠키, Authorization 헤더 등) ───────────────
-        // AllowedOriginPatterns("*") 와 함께 사용 가능
+        // ── 인증 정보 포함 여부 (Authorization 헤더, 쿠키 등) ───────────────
         config.setAllowCredentials(true);
 
         // ── preflight 캐시 시간 (초) ─────────────────────────────────────
@@ -41,7 +44,7 @@ public class CorsConfig {
         ));
 
         UrlBasedCorsConfigurationSource source = new UrlBasedCorsConfigurationSource();
-        source.registerCorsConfiguration("/**", config);  // 모든 경로에 적용
+        source.registerCorsConfiguration("/**", config);
 
         return new CorsFilter(source);
     }
