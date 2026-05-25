@@ -22,6 +22,9 @@ public class GptAnalysisResult {
     private Double logicScore;
     private Double structureScore;
 
+    // Azure ko-KR에서 prosody 미지원 → GPT 텍스트 기반 간접 추정
+    private Double prosodyScore;
+
     @Setter
     private Integer wordCount;
 

@@ -45,6 +45,8 @@ public class SecurityConfig {
             .csrf(AbstractHttpConfigurer::disable)
             .sessionManagement(sm -> sm.sessionCreationPolicy(SessionCreationPolicy.STATELESS))
             .authorizeHttpRequests(auth -> auth
+                    // OPTIONS preflight 요청은 인증 없이 전체 허용 (CORS 필수)
+                    .requestMatchers(org.springframework.http.HttpMethod.OPTIONS, "/**").permitAll()
                     .requestMatchers(PUBLIC_URLS).permitAll()
                     .anyRequest().authenticated()
             )

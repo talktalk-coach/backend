@@ -84,13 +84,21 @@ public class SpeechAnalysisAsyncService {
             );
             log.info("GPT 완료 - vocabularyScore: {}", gptResult.getVocabularyScore());
 
+            // Azure ko-KR prosody 미지원 시 GPT 텍스트 추정값으로 대체
+            double finalProsodyScore = (azureResult.getProsodyScore() != null
+                    && azureResult.getProsodyScore() > 0)
+                    ? azureResult.getProsodyScore()
+                    : (gptResult.getProsodyScore() != null ? gptResult.getProsodyScore() : 0.0);
+            log.info("[prosody] Azure={}, GPT={}, 최종={}",
+                    azureResult.getProsodyScore(), gptResult.getProsodyScore(), finalProsodyScore);
+
             // 3. 결과 저장
             SpeechAnalysis analysis = SpeechAnalysis.builder()
                     .speech(speech)
                     .transcript(azureResult.getTranscript())
                     .accuracyScore(azureResult.getAccuracyScore())
                     .fluencyScore(azureResult.getFluencyScore())
-                    .prosodyScore(azureResult.getProsodyScore())
+                    .prosodyScore(finalProsodyScore)
                     .vocabularyScore(gptResult.getVocabularyScore())
                     .wordCount(gptResult.getWordCount())
                     .logicScore(gptResult.getLogicScore())

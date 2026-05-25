@@ -149,9 +149,6 @@ public class AzureSpeechClient {
     }
 
     // ─── prosodyScore: JSON에서 직접 파싱 ────────────────────────────────
-    // Azure JSON 응답 구조:
-    // NBest[0].PronScore → 전체 발음 점수
-    // NBest[0].ProsodyScore → 운율 점수 (이 필드를 사용)
     private double parseProsodyFromJson(SpeechRecognitionResult result) {
         try {
             String json = result.getProperties()
@@ -164,11 +161,6 @@ public class AzureSpeechClient {
 
             JsonNode first = nBest.get(0);
 
-            // 필드 구조 확인용 전체 로그 출력
-            log.info("[Azure NBest[0] 키목록]");
-            first.fieldNames().forEachRemaining(key -> log.info("  key: {}", key));
-
-            // ProsodyScore 다양한 경로 탐색
             double prosody = first.path("ProsodyScore").asDouble(-1);
             if (prosody >= 0) { log.info("[Prosody 찾음] ProsodyScore={}", prosody); return prosody; }
 
