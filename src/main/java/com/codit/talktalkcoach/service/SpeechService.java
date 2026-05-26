@@ -32,14 +32,21 @@ public class SpeechService {
     private final SpeechRepository speechRepository;
     private final SpeechAnalysisRepository speechAnalysisRepository;
     private final SpeechAnalysisAsyncService speechAnalysisAsyncService;
+    private final SpeechSaveService speechSaveService;  // Speech 저장 전용 빈 (REQUIRES_NEW)
     private final S3Service s3Service;
     private final com.fasterxml.jackson.databind.ObjectMapper objectMapper;
 
     // ─── 업로드 + 비동기 분석 시작 ───────────────────────────────────────
-    @Transactional
+    // @Transactional 제거:
+    //   기존에는 @Transactional 범위 안에서 analyzeAsync를 호출하여
+    //   배포 환경(ECS+RDS)에서 커밋 전에 비동기 스레드가 speechId로 DB 조회 시
+    //   "존재하지 않는 스피치" 오류 발생.
+    //   speechSaveService.save()가 REQUIRES_NEW로 즉시 커밋하므로 타이밍 문제 해결.
     public Long uploadAndAnalyze(User user, String title,
                                  MultipartFile audioFile, int duration,
                                  SpeechCategory category) {
+
+        // 1. 오디오 바이트 읽기 (HTTP 요청 범위 내에서 미리 읽음)
         byte[] audioBytes;
         try {
             audioBytes = audioFile.getBytes();
@@ -56,19 +63,15 @@ public class SpeechService {
             throw new BusinessException(ErrorCode.AZURE_API_ERROR);
         }
 
-        // S3에 오디오 업로드
+        // 2. S3에 오디오 업로드
         String audioUrl = s3Service.upload(audioFile, "audio");
 
-        Speech speech = Speech.builder()
-                .user(user)
-                .title(title)
-                .audioUrl(audioUrl)
-                .duration(duration)
-                .targetLevel(user.getTargetLevel())
-                .category(category)
-                .build();
-        speechRepository.save(speech);
+        // 3. Speech 저장 — REQUIRES_NEW로 즉시 독립 트랜잭션 커밋
+        //    이 라인이 끝나는 시점에 RDS에 Speech가 확정된 상태
+        Speech speech = speechSaveService.save(user, title, audioUrl, duration, category);
 
+        // 4. 커밋 완료 후 비동기 분석 호출
+        //    analyzeAsync 내부에서 speechId로 DB 조회 시 항상 존재가 보장됨
         speechAnalysisAsyncService.analyzeAsync(speech.getSpeechId(), audioBytes);
         return speech.getSpeechId();
     }
@@ -76,7 +79,6 @@ public class SpeechService {
     // ─── 상태 조회 ───────────────────────────────────────────────────────
     @Transactional(readOnly = true)
     public SpeechStatusResponse getStatus(Long speechId, Long userId) {
-        // userId가 null이면 개발 모드 — speechId만으로 조회
         Speech speech = (userId != null)
                 ? getSpeechOfUser(speechId, userId)
                 : speechRepository.findById(speechId).orElseThrow(SpeechNotFoundException::new);
@@ -90,7 +92,6 @@ public class SpeechService {
     // ─── 결과 조회 ───────────────────────────────────────────────────────
     @Transactional(readOnly = true)
     public SpeechResultResponse getResult(Long speechId, Long userId) {
-        // userId가 null이면 개발 모드 — speechId만으로 조회
         Speech speech = (userId != null)
                 ? getSpeechOfUser(speechId, userId)
                 : speechRepository.findById(speechId).orElseThrow(SpeechNotFoundException::new);
