@@ -47,6 +47,7 @@ public class SecurityConfig {
             .authorizeHttpRequests(auth -> auth
                     // OPTIONS preflight 요청은 인증 없이 전체 허용 (CORS 필수)
                     .requestMatchers(org.springframework.http.HttpMethod.OPTIONS, "/**").permitAll()
+                    .requestMatchers("/health").permitAll() // Health Check용 경로는 누구나 접근 가능                 .anyRequest().authenticated()
                     .requestMatchers(PUBLIC_URLS).permitAll()
                     .anyRequest().authenticated()
             )
