@@ -59,14 +59,6 @@ public class SpeechController {
         return ResponseEntity.ok(speechService.getResult(speechId, userDetails.getUserId()));
     }
 
-    @Operation(summary = "결과 공유 URL 반환")
-    @GetMapping("/results/{speechId}/share")
-    public ResponseEntity<String> getShareUrl(
-            @AuthenticationPrincipal CustomUserDetails userDetails,
-            @PathVariable Long speechId) {
-        return ResponseEntity.ok("https://talktalkcoach.com/share/" + speechId);
-    }
-
     @Operation(summary = "스피치 삭제 (soft delete)")
     @DeleteMapping("/{speechId}")
     public ResponseEntity<Void> delete(

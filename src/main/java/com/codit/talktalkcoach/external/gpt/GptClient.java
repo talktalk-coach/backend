@@ -302,6 +302,7 @@ public class GptClient {
                 {
                   "scoringRationale": "<[%s] 평균과 비교한 채점 근거 1~2문장>",
                   "detectedCategory": "%s",
+                  "title": "<스피치 주제를 5단어 이내로 요약. 예: \"독서의 중요성\", \"환경 보호 필요성\", \"우정이 가지는 의미\">",
                   "vocabularyScore": <1~100 정수, 5배수 금지>,
                   "logicScore": <1~100 정수, 5배수 금지>,
                   "structureScore": <1~100 정수, 5배수 금지>,
@@ -746,8 +747,8 @@ public class GptClient {
                 """;
     }
 
-    // ─── 요약 피드백 ─────────────────────────────────────────────────
-    public String generateSummaryFeedback(String analysisContext, TargetLevel targetLevel) {
+    // ─── 요약 피드백 (JSON 배열로 반환) ────────────────────────────────────
+    public List<String> generateSummaryFeedback(String analysisContext, TargetLevel targetLevel) {
         String levelDesc = getLevelDescription(targetLevel);
         String prompt = String.format("""
                 당신은 친근하고 격려를 잘 하는 한국어 스피치 코치입니다.
@@ -755,25 +756,58 @@ public class GptClient {
                 
                 %s
                 
-                위 데이터를 바탕으로 다음 조건에 맞는 종합 피드백을 작성해주세요:
-                1. 2~3 문장으로만.
-                2. 잘한 점(과정·성취 중심) 1가지 + 개선할 점 1가지 반드시 포함
-                3. 학습자 수준에 맞는 어휘 사용
-                4. 마지막 문장은 응원으로 마무리
+                위 데이터를 바탕으로 아래 조건에 맞는 종합 피드백 3가지를 JSON 배열로 작성하세요.
+                
+                조건:
+                1. 피드백은 반드시 3개
+                2. 각 피드백은 1~2문장 이내
+                3. 피드백 구성: 잘한 점 1개 + 개선할 점 1개 + 응원 1개
+                4. 학습자 수준([%s])에 맞는 어휘 사용
                 5. 한국어로만
-                """, levelDesc, analysisContext);
+                
+                출력 형식 (JSON만, 다른 텍스트 없음):
+                ["피드백1", "피드백2", "피드백3"]
+                """, levelDesc, analysisContext, levelDesc);
 
+        // response_format 제거 — JSON 배열를 직접 반환받기 위해 json_object 사용 불가
         Map<String, Object> body = Map.of(
                 "model", MODEL,
                 "messages", List.of(Map.of("role", "user", "content", prompt)),
                 "temperature", 0.7,
-                "max_completion_tokens", 300
+                "max_completion_tokens", 500
         );
         try {
             ResponseEntity<Map> response = callGpt(body);
-            return extractContent(response.getBody());
+            String content = extractContent(response.getBody()).trim();
+            log.debug("GPT 요약 피드백 원문: {}", content);
+
+            // JSON 배열 위치 찾기
+            String jsonStr = content;
+            if (!content.startsWith("[")) {
+                int start = content.indexOf("[");
+                int end   = content.lastIndexOf("]");
+                if (start >= 0 && end > start) {
+                    jsonStr = content.substring(start, end + 1);
+                } else {
+                    log.warn("JSON 배열 미발견, 줄바꾸메 분리: {}", content);
+                    return java.util.Arrays.stream(content.split("\\n"))
+                            .map(String::trim)
+                            .filter(s -> !s.isBlank())
+                            .limit(3)
+                            .collect(java.util.stream.Collectors.toList());
+                }
+            }
+
+            String[] arr = new com.fasterxml.jackson.databind.ObjectMapper()
+                    .readValue(jsonStr, String[].class);
+            List<String> result = new java.util.ArrayList<>(java.util.Arrays.asList(arr));
+            if (result.size() != 3) {
+                log.warn("GPT 피드백 개수 이상: {}(3개 기대)", result.size());
+            }
+            log.info("AI 피드백 배열 생성 완료: {}개", result.size());
+            return result;
         } catch (Exception e) {
-            log.error("GPT 요약 피드백 오류", e);
+            log.error("GPT 요약 피드백 오류: {}", e.getMessage());
             throw new BusinessException(ErrorCode.GPT_API_ERROR);
         }
     }

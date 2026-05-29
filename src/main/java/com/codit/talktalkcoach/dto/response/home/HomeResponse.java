@@ -18,8 +18,8 @@ public class HomeResponse {
     // 3. 오늘 스피치 진행 시간 (분 단위, 초 절삭)
     private int todayPracticeMinutes;
 
-    // 4. AI 종합 피드백 (최근 5개 기반, GPT 생성)
-    private String summaryFeedback;
+    // 4. AI 종합 피드백 (최근 5개 기반, GPT 생성) — 배열로 반환
+    private List<String> summaryFeedback;
 
     // 5. 누적 스피치 횟수
     private int totalCount;
@@ -44,9 +44,10 @@ public class HomeResponse {
     @Getter
     @Builder
     public static class MonthlyScoreDto {
-        private String yearMonth;        // YYYY-MM
+        private String yearMonth;        // YYYY-MM (null이면 메시지 전용)
         private Double averageScore;
         private Integer practiceCount;
+        private String message;          // 이번달/지난달 데이터 없을 때 안내 멘트
     }
 
     // 하위 호환: radarHistory는 더 이상 사용하지 않음 (radarAverage로 대체)

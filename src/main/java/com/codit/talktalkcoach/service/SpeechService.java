@@ -4,6 +4,7 @@ import com.codit.talktalkcoach.domain.entity.Speech;
 import com.codit.talktalkcoach.domain.entity.SpeechAnalysis;
 import com.codit.talktalkcoach.domain.entity.User;
 import com.codit.talktalkcoach.domain.enums.SpeechCategory;
+import com.codit.talktalkcoach.domain.enums.SpeechStatus;
 import com.codit.talktalkcoach.dto.response.speech.SpeechResultResponse;
 import com.codit.talktalkcoach.dto.response.speech.SpeechStatusResponse;
 import com.codit.talktalkcoach.dto.response.user.SpeechListResponse;
@@ -12,6 +13,7 @@ import com.codit.talktalkcoach.exception.ErrorCode;
 import com.codit.talktalkcoach.exception.custom.SpeechNotFoundException;
 import com.codit.talktalkcoach.repository.SpeechAnalysisRepository;
 import com.codit.talktalkcoach.repository.SpeechRepository;
+import com.codit.talktalkcoach.util.ProgressMessageGenerator;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.data.domain.Page;
@@ -22,6 +24,7 @@ import org.springframework.transaction.annotation.Transactional;
 import org.springframework.web.multipart.MultipartFile;
 
 import java.util.List;
+import java.util.Objects;
 import java.util.stream.Collectors;
 
 @Slf4j
@@ -32,21 +35,14 @@ public class SpeechService {
     private final SpeechRepository speechRepository;
     private final SpeechAnalysisRepository speechAnalysisRepository;
     private final SpeechAnalysisAsyncService speechAnalysisAsyncService;
-    private final SpeechSaveService speechSaveService;  // Speech 저장 전용 빈 (REQUIRES_NEW)
+    private final SpeechSaveService speechSaveService;
     private final S3Service s3Service;
     private final com.fasterxml.jackson.databind.ObjectMapper objectMapper;
 
     // ─── 업로드 + 비동기 분석 시작 ───────────────────────────────────────
-    // @Transactional 제거:
-    //   기존에는 @Transactional 범위 안에서 analyzeAsync를 호출하여
-    //   배포 환경(ECS+RDS)에서 커밋 전에 비동기 스레드가 speechId로 DB 조회 시
-    //   "존재하지 않는 스피치" 오류 발생.
-    //   speechSaveService.save()가 REQUIRES_NEW로 즉시 커밋하므로 타이밍 문제 해결.
     public Long uploadAndAnalyze(User user, String title,
                                  MultipartFile audioFile, int duration,
                                  SpeechCategory category) {
-
-        // 1. 오디오 바이트 읽기 (HTTP 요청 범위 내에서 미리 읽음)
         byte[] audioBytes;
         try {
             audioBytes = audioFile.getBytes();
@@ -63,15 +59,8 @@ public class SpeechService {
             throw new BusinessException(ErrorCode.AZURE_API_ERROR);
         }
 
-        // 2. S3에 오디오 업로드
         String audioUrl = s3Service.upload(audioFile, "audio");
-
-        // 3. Speech 저장 — REQUIRES_NEW로 즉시 독립 트랜잭션 커밋
-        //    이 라인이 끝나는 시점에 RDS에 Speech가 확정된 상태
         Speech speech = speechSaveService.save(user, title, audioUrl, duration, category);
-
-        // 4. 커밋 완료 후 비동기 분석 호출
-        //    analyzeAsync 내부에서 speechId로 DB 조회 시 항상 존재가 보장됨
         speechAnalysisAsyncService.analyzeAsync(speech.getSpeechId(), audioBytes);
         return speech.getSpeechId();
     }
@@ -95,9 +84,25 @@ public class SpeechService {
         Speech speech = (userId != null)
                 ? getSpeechOfUser(speechId, userId)
                 : speechRepository.findById(speechId).orElseThrow(SpeechNotFoundException::new);
+
         SpeechAnalysis analysis = speechAnalysisRepository.findBySpeechSpeechId(speechId)
                 .orElseThrow(() -> new BusinessException(ErrorCode.SPEECH_ANALYSIS_NOT_FOUND));
-        return SpeechResultResponse.of(speech, analysis);
+
+        // 직전 최대 5개 COMPLETED 스피치 분석 결과 (현재 스피치 제외)
+        List<SpeechAnalysis> prevAnalyses = speechRepository
+                .findTop10ByUserOrderByCreatedAtDesc(speech.getUser())
+                .stream()
+                .filter(s -> s.getStatus() == SpeechStatus.COMPLETED
+                        && !s.getSpeechId().equals(speechId))
+                .limit(5)
+                .map(s -> speechAnalysisRepository.findBySpeechSpeechId(s.getSpeechId())
+                        .orElse(null))
+                .filter(Objects::nonNull)
+                .collect(Collectors.toList());
+
+        String progress = ProgressMessageGenerator.generate(analysis, prevAnalyses);
+
+        return SpeechResultResponse.of(speech, analysis, progress);
     }
 
     // ─── 목록 조회 ───────────────────────────────────────────────────────

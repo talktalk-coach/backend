@@ -36,8 +36,8 @@ public class DashboardStats {
         this.user = user;
     }
 
-    public void updateFeedback(String summaryFeedback) {
-        this.summaryFeedback = summaryFeedback;
+    public void updateFeedback(String summaryFeedbackJson) {
+        this.summaryFeedback = summaryFeedbackJson;  // JSON 배열 문자열로 저장
         this.lastUpdated = LocalDateTime.now();
     }
 

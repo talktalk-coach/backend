@@ -135,10 +135,10 @@ public class TestController {
                     """
     )
     @PostMapping("/gpt-feedback")
-    public ResponseEntity<String> testGptFeedback(
+    public ResponseEntity<java.util.List<String>> testGptFeedback(
             @RequestBody GptFeedbackTestRequest request) {
 
-        String feedback = gptClient.generateSummaryFeedback(
+        java.util.List<String> feedback = gptClient.generateSummaryFeedback(
                 request.getContext(),
                 request.getTargetLevel());
         return ResponseEntity.ok(feedback);

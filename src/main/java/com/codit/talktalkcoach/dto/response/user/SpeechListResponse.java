@@ -24,7 +24,7 @@ public class SpeechListResponse {
         private Long speechId;
         private String title;
         private Double averageScore;
-        private int duration;                // 초
+        private int duration;
         private TargetLevel targetLevel;
         private SpeechStatus status;
         private LocalDateTime createdAt;

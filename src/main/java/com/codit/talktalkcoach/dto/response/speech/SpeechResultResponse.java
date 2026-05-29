@@ -37,7 +37,10 @@ public class SpeechResultResponse {
     private String customPlan;
     private String transcript;
 
-    public static SpeechResultResponse of(Speech speech, SpeechAnalysis analysis) {
+    // 직전 5개 스피치 평균 대비 성장 멘트
+    private String progress;
+
+    public static SpeechResultResponse of(Speech speech, SpeechAnalysis analysis, String progress) {
         return SpeechResultResponse.builder()
                 .speechId(speech.getSpeechId())
                 .title(speech.getTitle())
@@ -57,6 +60,7 @@ public class SpeechResultResponse {
                 .overallFeedback(analysis.getOverallFeedback())
                 .customPlan(analysis.getCustomPlan())
                 .transcript(analysis.getTranscript())
+                .progress(progress)
                 .build();
     }
 }
