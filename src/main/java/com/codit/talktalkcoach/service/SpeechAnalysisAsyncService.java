@@ -113,7 +113,11 @@ public class SpeechAnalysisAsyncService {
 
             speechAnalysisRepository.save(analysis);
 
-            // 4. COMPLETED 상태 저장
+            // GPT가 생성한 주제로 title 덮어씀 (5단어 이내 요약)
+            if (gptResult.getTitle() != null && !gptResult.getTitle().isBlank()) {
+                speech.updateTitle(gptResult.getTitle());
+            }
+
             speech.complete();
             speechRepository.save(speech);
 

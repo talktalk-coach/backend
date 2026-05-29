@@ -17,6 +17,9 @@ public class GptAnalysisResult {
     @Setter
     private String detectedCategory;
 
+    // 스피치 주제 요약 — GPT가 생성, Speech.title을 덮어쀸 (예: "독서의 중요성")
+    private String title;
+
     // sentenceScore 제거
     private Double vocabularyScore;
     private Double logicScore;

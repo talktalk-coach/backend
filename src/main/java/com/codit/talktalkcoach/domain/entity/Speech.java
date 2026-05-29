@@ -26,6 +26,7 @@ public class Speech {
     @JoinColumn(name = "user_id", nullable = false)
     private User user;
 
+    // 최초 사용자 입력값으로 저장되며, 분석 완료 후 GPT가 생성한 주제로 덮어씀
     @Column(nullable = false, length = 100)
     private String title;
 
@@ -66,4 +67,6 @@ public class Speech {
 
     public void complete() { this.status = SpeechStatus.COMPLETED; }
     public void fail()     { this.status = SpeechStatus.FAILED; }
+    // GPT 분석 완료 후 주제로 title 갱신
+    public void updateTitle(String title) { this.title = title; }
 }
