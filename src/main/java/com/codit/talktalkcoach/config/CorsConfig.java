@@ -17,11 +17,10 @@ public class CorsConfig {
 
         // ── 허용할 Origin ───────────────────────────────────────────────────
         config.setAllowedOrigins(List.of(
-                "http://localhost:3000",    // 프론트 로컬 개발 서버 (Next.js 기본 포트)
-                "http://127.0.0.1:3000",    // 동일한 로컬 환경 (IP 방식)
-                "http://127.0.0.1:3001"    // 동일한 로컬 환경 (IP 방식)
-                // TODO: 운영 도메인 확정 시 아래 추가
-                // "https://talktalkcoach.com"
+                "http://localhost:3000",
+                "http://127.0.0.1:3000",
+                "http://127.0.0.1:3001",
+                "https://talktalkcoach.vercel.app" //프론트 배포 서버
         ));
 
         // ── 허용할 HTTP 메서드 ──────────────────────────────────────────────
