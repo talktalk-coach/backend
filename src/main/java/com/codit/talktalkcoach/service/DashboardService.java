@@ -11,7 +11,6 @@ import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
-import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.time.YearMonth;
 import java.time.format.DateTimeFormatter;
@@ -85,7 +84,6 @@ public class DashboardService {
     // ─── 월간 점수 2개 반환 ──────────────────────────────────────────────────────
     /**
      * [이번 달, 직전에 기록이 있는 달] 순서로 최대 2개 반환
-     *
      * 케이스별 처리:
      * 1. 이번 달 데이터 없음   → message: "시작이 반이다! 오늘 첫 스피치에 도전해보세요 🎤"
      * 2. 이번 달만 있고 이전 없음 → 이번 달 1개만 반환 + message: "꾸준한 노력으로 성장하고 있어요!"

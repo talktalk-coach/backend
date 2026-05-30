@@ -2,7 +2,6 @@ package com.codit.talktalkcoach.controller;
 
 import com.codit.talktalkcoach.domain.entity.RefreshToken;
 import com.codit.talktalkcoach.domain.entity.User;
-import com.codit.talktalkcoach.domain.enums.TargetLevel;
 import com.codit.talktalkcoach.dto.request.speech.GptFeedbackTestRequest;
 import com.codit.talktalkcoach.dto.request.speech.GptTestRequest;
 import com.codit.talktalkcoach.dto.request.user.QuickSignupRequest;

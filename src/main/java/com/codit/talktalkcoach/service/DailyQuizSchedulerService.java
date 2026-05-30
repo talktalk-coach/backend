@@ -72,6 +72,12 @@ public class DailyQuizSchedulerService {
      */
     @Transactional
     public void generateQuizForLevel(TargetLevel level) throws Exception {
+        // 오늘 해당 레벨 퀴즈 먼저 삭제 (중복 누적 방지)
+        LocalDateTime todayStart = LocalDate.now().atStartOfDay();
+        LocalDateTime todayEnd   = todayStart.plusDays(1);
+        dailyWordRepository.deleteTodayQuizByLevel(level, todayStart, todayEnd);
+        log.info("[{}] 기존 퀴즈 삭제 완료", level);
+
         String prompt = buildQuizPrompt(level);
 
         Map<String, Object> body = Map.of(
