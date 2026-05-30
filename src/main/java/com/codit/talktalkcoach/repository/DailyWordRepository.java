@@ -14,8 +14,17 @@ public interface DailyWordRepository extends JpaRepository<DailyWord, Long> {
 
     // 오늘 특정 레벨용으로 생성된 퀴즈 3개 조회
     @Query("SELECT d FROM DailyWord d WHERE d.targetLevel = :level " +
-           "AND d.createdAt >= :from AND d.createdAt < :to ORDER BY d.createdAt ASC")
+           "AND d.createdAt >= :from AND d.createdAt < :to ORDER BY d.createdAt ASC LIMIT 3")
     List<DailyWord> findTodayQuizByLevel(
+            @Param("level") TargetLevel level,
+            @Param("from")  LocalDateTime from,
+            @Param("to")    LocalDateTime to);
+
+    // 오늘 특정 레벨 퀴즈 삭제 (수동 재생성 시 사용)
+    @Modifying
+    @Query("DELETE FROM DailyWord d WHERE d.targetLevel = :level " +
+           "AND d.createdAt >= :from AND d.createdAt < :to")
+    void deleteTodayQuizByLevel(
             @Param("level") TargetLevel level,
             @Param("from")  LocalDateTime from,
             @Param("to")    LocalDateTime to);
