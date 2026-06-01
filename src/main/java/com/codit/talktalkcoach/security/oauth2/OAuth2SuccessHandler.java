@@ -9,6 +9,7 @@ import com.codit.talktalkcoach.security.jwt.JwtProperties;
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpServletResponse;
 import lombok.RequiredArgsConstructor;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.security.core.Authentication;
 import org.springframework.security.web.authentication.SimpleUrlAuthenticationSuccessHandler;
 import org.springframework.stereotype.Component;
@@ -24,8 +25,9 @@ public class OAuth2SuccessHandler extends SimpleUrlAuthenticationSuccessHandler 
     private final JwtProperties jwtProperties;
     private final RefreshTokenRepository refreshTokenRepository;
 
-    // 프론트엔드 리다이렉트 URL (application.yml에서 주입 가능하도록 분리 권장)
-    private static final String REDIRECT_URI = "http://localhost:3000/oauth2/callback";
+    // 프론트엔드 리다이렉트 URL — application.yml에서 주입
+    @Value("${oauth2.redirect-uri:http://localhost:3000/oauth2/callback}")
+    private String redirectUri;
 
     @Override
     public void onAuthenticationSuccess(HttpServletRequest request,
@@ -48,7 +50,7 @@ public class OAuth2SuccessHandler extends SimpleUrlAuthenticationSuccessHandler 
                         .build())
         );
 
-        String redirectUrl = REDIRECT_URI
+        String redirectUrl = redirectUri
                 + "?accessToken=" + accessToken
                 + "&refreshToken=" + refreshToken
                 + "&isNewUser=" + (user.getTargetLevel() == null);

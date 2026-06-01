@@ -3,6 +3,7 @@ package com.codit.talktalkcoach.service;
 import com.codit.talktalkcoach.domain.entity.Speech;
 import com.codit.talktalkcoach.domain.entity.SpeechAnalysis;
 import com.codit.talktalkcoach.domain.entity.User;
+import com.codit.talktalkcoach.domain.enums.SpeechStatus;
 import com.codit.talktalkcoach.domain.enums.TargetLevel;
 import com.codit.talktalkcoach.dto.response.user.GrowthHistoryResponse;
 import com.codit.talktalkcoach.repository.SpeechAnalysisRepository;
@@ -11,7 +12,7 @@ import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
-import java.time.format.DateTimeFormatter;
+import java.time.LocalDate;
 import java.util.*;
 import java.util.stream.Collectors;
 
@@ -22,68 +23,72 @@ public class GrowthHistoryService {
     private final SpeechRepository speechRepository;
     private final SpeechAnalysisRepository speechAnalysisRepository;
 
-    private static final DateTimeFormatter DATE_FMT =
-            DateTimeFormatter.ofPattern("yyyy-MM-dd");
-
     /**
      * 유저의 전체 스피치를 targetLevel별로 분류하여
-     * 각 레벨의 회차별 averageScore 시계열 데이터를 반환한다.
+     * 날짜별 평균 점수를 int 배열로 반환한다.
      *
      * - COMPLETED 상태인 스피치만 포함
-     * - 날짜 오름차순 정렬 (차트에서 시간 흐름 표현)
+     * - 하루에 여러 번 스피치한 경우 해당 날짜의 평균 1개로 집계
+     * - 최신순 정렬 (앞 = 최근, 뒤 = 오래된 순)
      * - 데이터가 없는 레벨은 응답에서 제외
      */
     @Transactional(readOnly = true)
     public List<GrowthHistoryResponse> getGrowthHistory(User user) {
 
-        // 1. 유저의 전체 완료된 스피치 조회 (날짜 오름차순)
+        // 1. 유저의 전체 COMPLETED 스피치 조회 (날짜 오름차순)
         List<Speech> speeches = speechRepository
-                .findByUserAndStatusOrderByCreatedAtAsc(user,
-                        com.codit.talktalkcoach.domain.enums.SpeechStatus.COMPLETED);
+                .findByUserAndStatusOrderByCreatedAtAsc(user, SpeechStatus.COMPLETED);
 
-        // 2. targetLevel 별로 그룹핑
-        //    LinkedHashMap → TargetLevel enum 선언 순서 유지 (ELEM_1_2 ~ MIDDLE_3)
+        // 2. targetLevel별로 그룹핑
         Map<TargetLevel, List<Speech>> grouped = speeches.stream()
                 .filter(s -> s.getTargetLevel() != null)
                 .collect(Collectors.groupingBy(
                         Speech::getTargetLevel,
-                        () -> new LinkedHashMap<>(),
+                        LinkedHashMap::new,
                         Collectors.toList()
                 ));
 
-        // 3. 레벨별 ScorePoint 시리즈 생성
         List<GrowthHistoryResponse> result = new ArrayList<>();
 
-        // TargetLevel enum 순서대로 정렬하여 반환
+        // 3. TargetLevel enum 선언 순서대로 처리
         Arrays.stream(TargetLevel.values()).forEach(level -> {
             List<Speech> levelSpeeches = grouped.get(level);
             if (levelSpeeches == null || levelSpeeches.isEmpty()) return;
 
-            List<GrowthHistoryResponse.ScorePoint> points = new ArrayList<>();
-            int index = 1;
+            // 4. 날짜별로 스피치 그룹핑 (yyyy-MM-dd 기준)
+            //    TreeMap → 날짜 오름차순 자동 정렬
+            Map<LocalDate, List<Double>> scoresByDate = new TreeMap<>();
 
             for (Speech speech : levelSpeeches) {
-                Optional<SpeechAnalysis> analysis =
-                        speechAnalysisRepository.findBySpeechSpeechId(speech.getSpeechId());
-                if (analysis.isEmpty()) continue;
-
-                double avg = analysis.get().calculateAverageScore();
-                // 소수점 1자리 반올림
-                avg = Math.round(avg * 10.0) / 10.0;
-
-                points.add(GrowthHistoryResponse.ScorePoint.builder()
-                        .index(index++)
-                        .date(speech.getCreatedAt().format(DATE_FMT))
-                        .averageScore(avg)
-                        .build());
+                speechAnalysisRepository.findBySpeechSpeechId(speech.getSpeechId())
+                        .ifPresent(analysis -> {
+                            LocalDate date = speech.getCreatedAt().toLocalDate();
+                            scoresByDate
+                                    .computeIfAbsent(date, k -> new ArrayList<>())
+                                    .add(analysis.calculateAverageScore());
+                        });
             }
 
-            if (points.isEmpty()) return;
+            if (scoresByDate.isEmpty()) return;
+
+            // 5. 날짜별 평균 → int 변환 후 최신순(역순) 정렬
+            List<Integer> scores = scoresByDate.values().stream()
+                    .map(dailyScores -> {
+                        double avg = dailyScores.stream()
+                                .mapToDouble(Double::doubleValue)
+                                .average()
+                                .orElse(0.0);
+                        return (int) Math.round(avg);
+                    })
+                    .collect(Collectors.toList());
+
+            // 최신순 (오름차순 → 역순)
+            Collections.reverse(scores);
 
             result.add(GrowthHistoryResponse.builder()
                     .targetLevel(level)
                     .levelLabel(getLevelLabel(level))
-                    .scores(points)
+                    .scores(scores)
                     .build());
         });
 

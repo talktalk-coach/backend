@@ -8,7 +8,9 @@ import java.util.List;
 
 /**
  * 성장치 히스토리 응답
- * 레벨별로 스피치 회차 순서 + 날짜 + averageScore를 반환
+ * 레벨별 날짜 기준 평균 점수 int 배열 반환
+ * - 하루에 여러 번 스피치한 경우 그날의 평균을 int로 반환
+ * - 최신순 정렬 (앞 = 최근, 뒤 = 오래된 순)
  */
 @Getter
 @Builder
@@ -20,19 +22,11 @@ public class GrowthHistoryResponse {
     /** 레벨 표시명 (프론트 차트 범례용) */
     private String levelLabel;
 
-    /** 해당 레벨로 진행한 스피치 목록 (날짜 오름차순) */
-    private List<ScorePoint> scores;
-
-    @Getter
-    @Builder
-    public static class ScorePoint {
-        /** 해당 레벨 내 회차 번호 (1부터 시작) */
-        private int index;
-
-        /** 스피치 날짜 (yyyy-MM-dd) */
-        private String date;
-
-        /** 해당 스피치의 6개 항목 평균 점수 */
-        private Double averageScore;
-    }
+    /**
+     * 날짜별 평균 점수 int 배열 (최신순)
+     * - 하루에 3번 스피치 → 그날의 평균 1개
+     * - 소수점 없음 (반올림)
+     * 예: [78, 74, 71, 68, 65]
+     */
+    private List<Integer> scores;
 }
