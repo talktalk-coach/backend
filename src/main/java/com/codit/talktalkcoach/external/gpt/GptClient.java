@@ -769,12 +769,21 @@ public class GptClient {
                 ["피드백1", "피드백2", "피드백3"]
                 """, levelDesc, analysisContext, levelDesc);
 
-        // response_format 제거 — JSON 배열를 직접 반환받기 위해 json_object 사용 불가
         Map<String, Object> body = Map.of(
                 "model", MODEL,
-                "messages", List.of(Map.of("role", "user", "content", prompt)),
+                "messages", List.of(
+                        Map.of("role", "system", "content",
+                                """
+                                당신은 JSON 배열만 출력하는 데이터 포맷터입니다.
+                                반드시 ["문장1", "문장2", "문장3"] 형식으로만 답하세요.
+                                설명, 서론, 번호, \\n, **배경정보 절대 사용 금지.
+                                각 요소는 반드시 1문장으로만.
+                                """
+                        ),
+                        Map.of("role", "user", "content", prompt)
+                ),
                 "temperature", 0.7,
-                "max_completion_tokens", 500
+                "max_completion_tokens", 300
         );
         try {
             ResponseEntity<Map> response = callGpt(body);

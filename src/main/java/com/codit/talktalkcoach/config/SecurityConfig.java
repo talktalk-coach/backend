@@ -3,6 +3,8 @@ package com.codit.talktalkcoach.config;
 import com.codit.talktalkcoach.repository.UserRepository;
 import com.codit.talktalkcoach.security.jwt.JwtFilter;
 import com.codit.talktalkcoach.security.jwt.JwtProvider;
+import com.codit.talktalkcoach.security.oauth2.CustomOAuth2UserService;
+import com.codit.talktalkcoach.security.oauth2.OAuth2SuccessHandler;
 import lombok.RequiredArgsConstructor;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
@@ -22,10 +24,15 @@ public class SecurityConfig {
 
     private final JwtProvider jwtProvider;
     private final UserRepository userRepository;
+    private final CustomOAuth2UserService customOAuth2UserService;
+    private final OAuth2SuccessHandler oAuth2SuccessHandler;
 
     private static final String[] PUBLIC_URLS = {
             // ── 인증 API ──────────────────────────────────────────────────────
             "/api/auth/**",
+            // ── 소셔 로그인 ─────────────────────────────────────
+            "/oauth2/**",
+            "/login/oauth2/**",
             // ── 개발 테스트 전용 ───────────────────────────────────────────────
             "/api/test/**",
             // ── 퀴즈 생성 (스케줄러 수동 실행) ───────────────────────────────
@@ -51,7 +58,21 @@ public class SecurityConfig {
                     .requestMatchers(PUBLIC_URLS).permitAll()
                     .anyRequest().authenticated()
             )
-            .addFilterBefore(jwtFilter(), UsernamePasswordAuthenticationFilter.class);
+            .addFilterBefore(jwtFilter(), UsernamePasswordAuthenticationFilter.class)
+            .oauth2Login(oauth2 -> oauth2
+                    // 소셔 로그인 시작 엔드포인트
+                    // 프론트: GET /oauth2/authorize/google 또는 /oauth2/authorize/kakao
+                    .authorizationEndpoint(ep -> ep
+                            .baseUri("/oauth2/authorize"))
+                    // 카카오/구글에서 콜백 리다이렉트 URI
+                    .redirectionEndpoint(ep -> ep
+                            .baseUri("/login/oauth2/code/*"))
+                    // 유저 정보 조회 + 신규 회원 자동 가입
+                    .userInfoEndpoint(ep -> ep
+                            .userService(customOAuth2UserService))
+                    // 로그인 성공 시 JWT 발급 후 프론트로 리다이렉트
+                    .successHandler(oAuth2SuccessHandler)
+            );
 
         return http.build();
     }

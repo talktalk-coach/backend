@@ -15,7 +15,7 @@ spring:
   # Jackson 날짜 직렬화 설정
   jackson:
     serialization:
-      write-dates-as-timestamps: false   # LocalDateTime → ISO 8601 문자열로 직렬화
+      write-dates-as-timestamps: false
     time-zone: Asia/Seoul
 
   # 파일 업로드 제한
@@ -24,28 +24,44 @@ spring:
       max-file-size: 200MB
       max-request-size: 200MB
 
-  # TODO: 카카오/구글 API 준비 완료 후 아래 oauth2 블록 주석 해제
-  # security:
-  #   oauth2:
-  #     client:
-  #       registration:
-  #         google:
-  #           client-id: ${GOOGLE_CLIENT_ID}
-  #           client-secret: ${GOOGLE_CLIENT_SECRET}
-  #           scope: email, profile
-  #         kakao:
-  #           client-id: ${KAKAO_CLIENT_ID}
-  #           client-secret: ${KAKAO_CLIENT_SECRET}
-  #           client-authentication-method: client_secret_post
-  #           authorization-grant-type: authorization_code
-  #           redirect-uri: "{baseUrl}/login/oauth2/code/kakao"
-  #           scope: account_email, profile_nickname, profile_image
-  #       provider:
-  #         kakao:
-  #           authorization-uri: https://kauth.kakao.com/oauth/authorize
-  #           token-uri: https://kauth.kakao.com/oauth/token
-  #           user-info-uri: https://kapi.kakao.com/v2/user/me
-  #           user-name-attribute: id
+  # OAuth2 소셜 로그인
+  security:
+    oauth2:
+      client:
+        registration:
+          google:
+            client-id: ${GOOGLE_CLIENT_ID}
+            client-secret: ${GOOGLE_CLIENT_SECRET}
+            scope: email, profile
+            redirect-uri: "{baseUrl}/login/oauth2/code/google"
+          kakao:
+            client-id: ${KAKAO_CLIENT_ID}
+            client-secret: dummy  # PKCE 비활성화용 더미값 (실제 Client Secret 없음)
+            client-authentication-method: client_secret_post
+            authorization-grant-type: authorization_code
+            redirect-uri: "{baseUrl}/login/oauth2/code/kakao"
+            scope: account_email, profile_nickname, profile_image
+            provider: kakao
+        provider:
+          kakao:
+            authorization-uri: https://kauth.kakao.com/oauth/authorize
+            token-uri: https://kauth.kakao.com/oauth/token
+            user-info-uri: https://kapi.kakao.com/v2/user/me
+            user-name-attribute: id
+
+  # Gmail SMTP 이메일 발송 설정
+  mail:
+    host: smtp.gmail.com
+    port: 587
+    username: ${MAIL_USERNAME}
+    password: ${MAIL_PASSWORD}
+    properties:
+      mail.smtp.auth: true
+      mail.smtp.starttls.enable: true
+      mail.smtp.starttls.required: true
+      mail.smtp.connectiontimeout: 5000
+      mail.smtp.timeout: 5000
+      mail.smtp.writetimeout: 5000
 
 # AWS S3
 aws:
@@ -59,7 +75,7 @@ aws:
 jwt:
   secret: ${JWT_SECRET}
   access-token-expiry: 604800000      # 7일 (ms)
-  refresh-token-expiry: 1209600000  # 14일 (ms)
+  refresh-token-expiry: 1209600000    # 14일 (ms)
 
 # Azure Speech API
 azure:
@@ -72,10 +88,16 @@ openai:
   api:
     key: ${OPENAI_API_KEY}
 
+# OAuth2 소셜 로그인 리다이렉트
+# 로컬: http://localhost:3000/oauth2/callback
+# 배포: 프론트 배포 URL로 변경
+oauth2:
+  redirect-uri: ${OAUTH2_REDIRECT_URI:http://localhost:3000/oauth2/callback}
+
 # SpringDoc Swagger 설정
 springdoc:
   swagger-ui:
-    path: /swagger-ui.html        # 접속 URL: http://localhost:8080/swagger-ui.html
+    path: /swagger-ui.html
     tags-sorter: alpha
     operations-sorter: alpha
     display-request-duration: true
