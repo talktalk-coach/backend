@@ -52,8 +52,8 @@ spring:
 
   # Gmail SMTP 이메일 발송 설정
   mail:
-    host: smtp.gmail.com
-    port: 587
+    host: smtp.gmail.com      # 고정값 (환경변수 미사용)
+    port: 587                 # 고정값
     username: ${MAIL_USERNAME}
     password: ${MAIL_PASSWORD}
     properties:

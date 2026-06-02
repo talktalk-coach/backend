@@ -19,13 +19,17 @@ spring:
     show-sql: false
 
   mail:
-    host: ${MAIL_HOST}
+    host: smtp.gmail.com
     port: 587
     username: ${MAIL_USERNAME}
     password: ${MAIL_PASSWORD}
     properties:
       mail.smtp.auth: true
       mail.smtp.starttls.enable: true
+      mail.smtp.starttls.required: true
+      mail.smtp.connectiontimeout: 5000
+      mail.smtp.timeout: 5000
+      mail.smtp.writetimeout: 5000
 
 logging:
   level:
