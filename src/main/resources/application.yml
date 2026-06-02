@@ -1,6 +1,7 @@
 spring:
-  profiles:
-    active: local
+  # profiles.active는 각 환경에서 직접 설정
+  # 로컬: application-local.yml의 on-profile: local로 자동 적용
+  # 배포(ECS): SPRING_PROFILES_ACTIVE 환경변수로 설정
 
   # JPA
   jpa:
