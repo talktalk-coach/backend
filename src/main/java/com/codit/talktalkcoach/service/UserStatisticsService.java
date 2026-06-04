@@ -34,7 +34,7 @@ public class UserStatisticsService {
 
         if (allSpeeches.isEmpty()) {
             return UserStatisticsResponse.builder()
-                    .summaryLine("아직 스피치 기록이 없습니다. 첫 번째 연습을 시작해보세요!")
+                    .summaryTitle("아직 스피치 기록이 없습니다. 첫 번째 연습을 시작해보세요!")
                     .growthRate(0)
                     .masteryMap(Collections.emptyMap())
                     .dailyScores(buildDailyScores(user))  // 빈 날짜도 채워서 반환
@@ -44,13 +44,20 @@ public class UserStatisticsService {
         Map<String, Double> masteryMap = calculateMastery(allSpeeches);
         double growthRate = calculateGrowthRate(allSpeeches);
         List<UserStatisticsResponse.DailyScoreDto> dailyScores = buildDailyScores(user);
-        String summaryLine = buildSummaryLine(masteryMap, growthRate);
+        UserStatisticsResponse.TotalScoreDto totalScores = calculateTotalScores(user);
+
+        // 항목별 성장률 계산 (최근 10개 앞5/뒤 5개 비교)
+        Map<String, Double> growthRateByItem = calculateItemGrowthRates(allSpeeches);
+        String summaryTitle  = buildSummaryTitle(growthRateByItem, allSpeeches.size());
+        String summaryDetail = buildSummaryDetail(growthRateByItem, allSpeeches.size());
 
         return UserStatisticsResponse.builder()
-                .summaryLine(summaryLine)
+                .summaryTitle(summaryTitle)
+                .summaryDetail(summaryDetail)
                 .growthRate(growthRate)
                 .masteryMap(masteryMap)
                 .dailyScores(dailyScores)
+                .totalScores(totalScores)
                 .build();
     }
 
@@ -103,152 +110,61 @@ public class UserStatisticsService {
         return ScoreCalculator.calculateGrowthRate(previous, recent);
     }
 
-    // ─── 최근 7일 일별 점수 (보간 포함) ──────────────────────────────────────
+    // ─── 일별 점수 (있는 데이터 기준 최대 7개, 부족하면 0점으로 왼쪽 채움) ─────
     private List<UserStatisticsResponse.DailyScoreDto> buildDailyScores(User user) {
-        LocalDate today   = LocalDate.now();
-        LocalDate weekAgo = today.minusDays(6);  // 7일치 (오늘 포함)
 
-        // 1. 최근 7일 + 그 이전 마지막 스피치까지 조회 (보간 기준값 확보용)
-        LocalDateTime from = weekAgo.minusDays(30).atStartOfDay(); // 여유있게 30일 전부터
-        LocalDateTime to   = today.plusDays(1).atStartOfDay();
+        // 1. 전체 COMPLETED 스피치 조회 (오래된 순)
+        List<Speech> allSpeeches = speechRepository
+                .findByUserAndStatusOrderByCreatedAtAsc(user, SpeechStatus.COMPLETED);
 
-        List<Speech> speeches = speechRepository
-                .findByUserAndStatusAndCreatedAtBetween(user, SpeechStatus.COMPLETED, from, to);
-
-        // 2. 날짜별 실제 스피치 평균 집계 (날짜 → averageScore)
-        Map<LocalDate, Double> actualScores = new TreeMap<>();
-        speeches.forEach(s -> {
-            LocalDate date = s.getCreatedAt().toLocalDate();
+        // 2. 날짜별 평균 집계 (TreeMap → 날짜 오름차순 자동 정렬)
+        Map<LocalDate, List<SpeechAnalysis>> byDate = new TreeMap<>();
+        for (Speech s : allSpeeches) {
             speechAnalysisRepository.findBySpeechSpeechId(s.getSpeechId()).ifPresent(a -> {
-                double score = a.calculateAverageScore();
-                actualScores.merge(date, score, (old, nw) -> (old + nw) / 2.0);
+                LocalDate date = s.getCreatedAt().toLocalDate();
+                byDate.computeIfAbsent(date, k -> new ArrayList<>()).add(a);
             });
-        });
+        }
 
-        // 3. 일주일 내 실제 데이터가 있는 날짜만 추출 (정렬)
-        List<LocalDate> actualDatesInWeek = actualScores.keySet().stream()
-                .filter(d -> !d.isBefore(weekAgo) && !d.isAfter(today))
-                .sorted()
+        // 3. 날짜별 DailyScoreDto 생성 (오래된 → 최신 순)
+        List<UserStatisticsResponse.DailyScoreDto> dataList = byDate.entrySet().stream()
+                .map(entry -> {
+                    String dateStr = entry.getKey().format(DATE_FMT);
+                    List<SpeechAnalysis> analyses = entry.getValue();
+                    return UserStatisticsResponse.DailyScoreDto.builder()
+                            .date(dateStr)
+                            .accuracyScore(round1(avg(analyses, SpeechAnalysis::getAccuracyScore)))
+                            .fluencyScore(round1(avg(analyses, SpeechAnalysis::getFluencyScore)))
+                            .prosodyScore(round1(avg(analyses, SpeechAnalysis::getProsodyScore)))
+                            .vocabularyScore(round1(avg(analyses, SpeechAnalysis::getVocabularyScore)))
+                            .logicScore(round1(avg(analyses, SpeechAnalysis::getLogicScore)))
+                            .structureScore(round1(avg(analyses, SpeechAnalysis::getStructureScore)))
+                            .averageScore(round1(analyses.stream()
+                                    .mapToDouble(SpeechAnalysis::calculateAverageScore)
+                                    .average().orElse(0)))
+                            .build();
+                })
                 .collect(Collectors.toList());
 
-        // 4. 일주일 범위 밖 이전 데이터 중 가장 최근 값 (7일 시작 이전 기준점)
-        OptionalDouble beforeWeekScore = actualScores.entrySet().stream()
-                .filter(e -> e.getKey().isBefore(weekAgo))
-                .max(Map.Entry.comparingByKey())
-                .map(e -> OptionalDouble.of(e.getValue()))
-                .orElse(OptionalDouble.empty());
+        // 4. 최근 7개만 추출 (7개 초과 시 최신 7개)
+        if (dataList.size() > 7) {
+            dataList = dataList.subList(dataList.size() - 7, dataList.size());
+        }
 
-        // 5. 일주일 전체 7일치 채우기
+        // 5. 7개 미만이면 왼쪽(오래된 쪽)에 0점 패딩
         List<UserStatisticsResponse.DailyScoreDto> result = new ArrayList<>();
-
-        for (int i = 0; i < 7; i++) {
-            LocalDate date = weekAgo.plusDays(i);
-            String dateStr = date.format(DATE_FMT);
-
-            if (actualScores.containsKey(date)) {
-                // 실제 스피치가 있는 날 → 풀 데이터
-                Speech refSpeech = speeches.stream()
-                        .filter(s -> s.getCreatedAt().toLocalDate().equals(date))
-                        .findFirst().orElse(null);
-
-                if (refSpeech != null) {
-                    speechAnalysisRepository.findBySpeechSpeechId(refSpeech.getSpeechId())
-                            .ifPresent(a -> {
-                                // 같은 날 여러 스피치는 평균으로
-                                List<SpeechAnalysis> dayAnalyses = speeches.stream()
-                                        .filter(s2 -> s2.getCreatedAt().toLocalDate().equals(date))
-                                        .map(s2 -> speechAnalysisRepository
-                                                .findBySpeechSpeechId(s2.getSpeechId()).orElse(null))
-                                        .filter(Objects::nonNull)
-                                        .collect(Collectors.toList());
-
-                                result.add(UserStatisticsResponse.DailyScoreDto.builder()
-                                        .date(dateStr)
-                                        .accuracyScore(round1(avg(dayAnalyses, SpeechAnalysis::getAccuracyScore)))
-                                        .fluencyScore(round1(avg(dayAnalyses, SpeechAnalysis::getFluencyScore)))
-                                        .prosodyScore(round1(avg(dayAnalyses, SpeechAnalysis::getProsodyScore)))
-                                        .vocabularyScore(round1(avg(dayAnalyses, SpeechAnalysis::getVocabularyScore)))
-                                        .logicScore(round1(avg(dayAnalyses, SpeechAnalysis::getLogicScore)))
-                                        .structureScore(round1(avg(dayAnalyses, SpeechAnalysis::getStructureScore)))
-                                        .averageScore(round1(dayAnalyses.stream()
-                                                .mapToDouble(SpeechAnalysis::calculateAverageScore)
-                                                .average().orElse(0)))
-                                        .build());
-                            });
-                }
-            } else {
-                // 스피치가 없는 날 → 보간 또는 특수 처리
-                double interpolated = interpolate(date, actualDatesInWeek, actualScores, beforeWeekScore, today);
-                result.add(UserStatisticsResponse.DailyScoreDto.builder()
-                        .date(dateStr)
-                        .accuracyScore(interpolated)
-                        .fluencyScore(interpolated)
-                        .prosodyScore(interpolated)
-                        .vocabularyScore(interpolated)
-                        .logicScore(interpolated)
-                        .structureScore(interpolated)
-                        .averageScore(interpolated)
-                        .build());
-            }
+        int padCount = 7 - dataList.size();
+        for (int i = 0; i < padCount; i++) {
+            result.add(UserStatisticsResponse.DailyScoreDto.builder()
+                    .date(null)   // 날짜 없음 (프론트에서 빈 칸으로 처리)
+                    .accuracyScore(0.0).fluencyScore(0.0).prosodyScore(0.0)
+                    .vocabularyScore(0.0).logicScore(0.0).structureScore(0.0)
+                    .averageScore(0.0)
+                    .build());
         }
+        result.addAll(dataList);
 
-        return result;
-    }
-
-    /**
-     * 스피치가 없는 날짜의 보간값 계산
-     *
-     * 규칙:
-     * 1. 앞뒤 실제 데이터가 있으면 → 선형 보간
-     * 2. 첫 데이터 이전 (또는 일주일 범위 이전 기준값) → 첫 기록값
-     * 3. 마지막 데이터 이후 (미래 or 오늘) → 0
-     * 4. 일주일 내 데이터가 전혀 없고 이전 기준값 있음 → 이전 기준값
-     * 5. 모든 데이터 없음 → 0
-     */
-    private double interpolate(LocalDate date,
-                                List<LocalDate> actualDatesInWeek,
-                                Map<LocalDate, Double> actualScores,
-                                OptionalDouble beforeWeekScore,
-                                LocalDate today) {
-        // 일주일 내 실제 데이터가 없는 경우
-        if (actualDatesInWeek.isEmpty()) {
-            // 이전 기준값이 있으면 그 값 유지
-            return beforeWeekScore.isPresent() ? round1(beforeWeekScore.getAsDouble()) : 0.0;
-        }
-
-        LocalDate firstActual = actualDatesInWeek.get(0);
-        LocalDate lastActual  = actualDatesInWeek.get(actualDatesInWeek.size() - 1);
-
-        // 첫 실제 데이터보다 이전 → 첫 기록값 (또는 이전 기준값)
-        if (date.isBefore(firstActual)) {
-            if (beforeWeekScore.isPresent()) {
-                return round1(beforeWeekScore.getAsDouble());
-            }
-            return round1(actualScores.get(firstActual));
-        }
-
-        // 마지막 실제 데이터보다 이후 → 0 (아직 진행 안 한 날)
-        if (date.isAfter(lastActual)) {
-            return 0.0;
-        }
-
-        // 앞뒤 실제 데이터 찾아서 선형 보간
-        LocalDate prev = null, next = null;
-        for (LocalDate d : actualDatesInWeek) {
-            if (!d.isAfter(date)) prev = d;
-            if (!d.isBefore(date) && next == null) next = d;
-        }
-
-        if (prev == null) return round1(actualScores.get(next));
-        if (next == null || next.equals(prev)) return round1(actualScores.get(prev));
-
-        double prevScore = actualScores.get(prev);
-        double nextScore = actualScores.get(next);
-        long totalDays   = prev.until(next, java.time.temporal.ChronoUnit.DAYS);
-        long elapsedDays = prev.until(date, java.time.temporal.ChronoUnit.DAYS);
-
-        double interpolated = prevScore + (nextScore - prevScore) * ((double) elapsedDays / totalDays);
-        return round1(interpolated);
+        return result;  // 항상 7개
     }
 
     // ─── 유틸 ─────────────────────────────────────────────────────────────────
@@ -262,10 +178,143 @@ public class UserStatisticsService {
         return Math.round(v * 10.0) / 10.0;
     }
 
-    private String buildSummaryLine(Map<String, Double> mastery, double growthRate) {
-        String best = mastery.entrySet().stream()
-                .max(Map.Entry.comparingByValue())
-                .map(Map.Entry::getKey).orElse("전체");
-        return String.format("가장 강한 역량은 [%s] 이며, 최근 성장률은 %.1f%%입니다.", best, growthRate);
+    // ─── 전체 스피치 항목별 평균 ─────────────────────────────────────
+    private UserStatisticsResponse.TotalScoreDto calculateTotalScores(User user) {
+        List<Speech> allSpeeches = speechRepository
+                .findByUserAndStatusOrderByCreatedAtAsc(user, SpeechStatus.COMPLETED);
+
+        if (allSpeeches.isEmpty()) {
+            return UserStatisticsResponse.TotalScoreDto.builder()
+                    .accuracyScore(0.0).fluencyScore(0.0).prosodyScore(0.0)
+                    .vocabularyScore(0.0).logicScore(0.0).structureScore(0.0)
+                    .averageScore(0.0)
+                    .build();
+        }
+
+        List<SpeechAnalysis> analyses = allSpeeches.stream()
+                .map(s -> speechAnalysisRepository.findBySpeechSpeechId(s.getSpeechId())
+                        .orElse(null))
+                .filter(Objects::nonNull)
+                .collect(Collectors.toList());
+
+        return UserStatisticsResponse.TotalScoreDto.builder()
+                .accuracyScore(round1(avg(analyses, SpeechAnalysis::getAccuracyScore)))
+                .fluencyScore(round1(avg(analyses, SpeechAnalysis::getFluencyScore)))
+                .prosodyScore(round1(avg(analyses, SpeechAnalysis::getProsodyScore)))
+                .vocabularyScore(round1(avg(analyses, SpeechAnalysis::getVocabularyScore)))
+                .logicScore(round1(avg(analyses, SpeechAnalysis::getLogicScore)))
+                .structureScore(round1(avg(analyses, SpeechAnalysis::getStructureScore)))
+                .averageScore(round1(analyses.stream()
+                        .mapToDouble(SpeechAnalysis::calculateAverageScore)
+                        .average().orElse(0)))
+                .build();
     }
+
+    // ─── 항목별 성장률 계산 (앞 5개 vs 뒤 5개) ─────────────────────────────
+    private Map<String, Double> calculateItemGrowthRates(List<Speech> speeches) {
+        // speeches는 이미 치루 내림차순 (어린것 맨 뒤)
+        // 앞 5개 = 오래된 실력, 뒤 5개 = 최근 실력
+        int total = speeches.size();
+        int half  = total / 2;
+
+        List<Speech> older  = speeches.subList(half, total);  // 오래된 절반
+        List<Speech> recent = speeches.subList(0, half);      // 최근 절반
+
+        List<String> items = List.of(
+                "accuracy", "fluency", "prosody", "vocabulary", "logic", "structure");
+
+        Map<String, Double> growthRates = new LinkedHashMap<>();
+        for (String item : items) {
+            double olderAvg  = avgByItem(older, item);
+            double recentAvg = avgByItem(recent, item);
+
+            double rate = (olderAvg == 0) ? 0.0
+                    : round1((recentAvg - olderAvg) / olderAvg * 100);
+            growthRates.put(item, rate);
+        }
+        return growthRates;
+    }
+
+    private double avgByItem(List<Speech> speeches, String item) {
+        return speeches.stream()
+                .map(s -> speechAnalysisRepository.findBySpeechSpeechId(s.getSpeechId())
+                        .orElse(null))
+                .filter(Objects::nonNull)
+                .mapToDouble(a -> getScoreByItem(a, item))
+                .average().orElse(0.0);
+    }
+
+    private double getScoreByItem(SpeechAnalysis a, String item) {
+        return switch (item) {
+            case "accuracy"   -> a.getAccuracyScore()   != null ? a.getAccuracyScore()   : 0.0;
+            case "fluency"    -> a.getFluencyScore()    != null ? a.getFluencyScore()    : 0.0;
+            case "prosody"    -> a.getProsodyScore()    != null ? a.getProsodyScore()    : 0.0;
+            case "vocabulary" -> a.getVocabularyScore() != null ? a.getVocabularyScore() : 0.0;
+            case "logic"      -> a.getLogicScore()      != null ? a.getLogicScore()      : 0.0;
+            case "structure"  -> a.getStructureScore()  != null ? a.getStructureScore()  : 0.0;
+            default -> 0.0;
+        };
+    }
+
+    // ─── 항목 한국어 이름 ──────────────────────────────────────────────
+    private String toKorean(String item) {
+        return switch (item) {
+            case "accuracy"   -> "발음";
+            case "fluency"    -> "유창성";
+            case "prosody"    -> "억양와 리듬";
+            case "vocabulary" -> "어휘 다양성";
+            case "logic"      -> "논리 구성";
+            case "structure"  -> "발표 구조";
+            default -> item;
+        };
+    }
+
+    // ─── summaryTitle 생성 ───────────────────────────────────────────────
+    private String buildSummaryTitle(Map<String, Double> growthRates, int speechCount) {
+        if (speechCount == 0) return "첫 번째 스피치를 시작해보세요!";
+        if (speechCount < 5) return "꼭준히 연습 중이에요! 조금 더 하면 상세한 리포트를 볼 수 있어요.";
+
+        // 성장률 상위 2개 추출
+        List<Map.Entry<String, Double>> top2 = growthRates.entrySet().stream()
+                .sorted(Map.Entry.<String, Double>comparingByValue().reversed())
+                .limit(2)
+                .collect(Collectors.toList());
+
+        if (top2.isEmpty()) return "꼭준히 연습 중이에요!";
+
+        String first  = toKorean(top2.get(0).getKey());
+        double rate1  = top2.get(0).getValue();
+
+        if (top2.size() == 1 || rate1 <= 0) {
+            if (rate1 > 0)
+                return String.format("%s이(가) 눈에 띄게 성장했어요!", first);
+            return "꼭준히 연습하고 있어요. 지금의 페이스를 유지해보세요!";
+        }
+
+        String second = toKorean(top2.get(1).getKey());
+        double rate2  = top2.get(1).getValue();
+
+        if (rate1 > 0 && rate2 > 0)
+            return String.format("%s과(와) %s이(가) 눈에 띄게 성장했어요!", first, second);
+        if (rate1 > 0)
+            return String.format("%s이(가) 눈에 띄게 성장했어요!", first);
+        return "꼭준히 연습하고 있어요. 지금의 페이스를 유지해보세요!";
+    }
+
+    // ─── summaryDetail 생성 ──────────────────────────────────────────────
+    private String buildSummaryDetail(Map<String, Double> growthRates, int speechCount) {
+        if (speechCount < 5) return "더 많이 연습할수록 정확한 성장 분석이 가능해집니다.";
+
+        // 성장률 1위 항목
+        Map.Entry<String, Double> top = growthRates.entrySet().stream()
+                .max(Map.Entry.comparingByValue())
+                .orElse(null);
+
+        if (top == null || top.getValue() <= 0)
+            return "지속적인 연습으로 성장하고 있어요.";
+
+        return String.format("지난 연습 대비 %s 점수가 %.1f%% 향상되었습니다.",
+                toKorean(top.getKey()), top.getValue());
+    }
+
 }
