@@ -5,9 +5,9 @@ spring:
     import: optional:file:.env[.properties]   # .env 파일 자동 로딩
 
   datasource:
-    url: jdbc:mysql://localhost:3306/talktalkcoach
-    username: ${DB_USERNAME:root}
-    password: ${DB_PASSWORD:yunji32274}
+    url: ${DB_URL}   # .env의 RDS 전체 URL 사용
+    username: ${DB_USERNAME}
+    password: ${DB_PASSWORD}
     driver-class-name: com.mysql.cj.jdbc.Driver
 
   jpa:

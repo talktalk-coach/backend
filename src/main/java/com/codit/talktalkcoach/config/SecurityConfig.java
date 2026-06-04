@@ -58,6 +58,16 @@ public class SecurityConfig {
                     .requestMatchers(PUBLIC_URLS).permitAll()
                     .anyRequest().authenticated()
             )
+            .exceptionHandling(ex -> ex
+                    // 인증 실패 시 OAuth2 로그인 페이지 대신 401 반환
+                    .authenticationEntryPoint((request, response, authException) -> {
+                        response.setStatus(jakarta.servlet.http.HttpServletResponse.SC_UNAUTHORIZED);
+                        response.setContentType("application/json;charset=UTF-8");
+                        response.getWriter().write(
+                                "{\"status\":401,\"code\":\"UNAUTHORIZED\",\"message\":\"\uc778증이 필요합니다.\"}"
+                        );
+                    })
+            )
             .addFilterBefore(jwtFilter(), UsernamePasswordAuthenticationFilter.class)
             .oauth2Login(oauth2 -> oauth2
                     // 소셔 로그인 시작 엔드포인트

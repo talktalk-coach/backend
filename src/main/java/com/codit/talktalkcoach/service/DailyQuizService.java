@@ -29,7 +29,6 @@ public class DailyQuizService {
     private final DailyQuizLogRepository dailyQuizLogRepository;
     private final DailyQuizSchedulerService schedulerService;
 
-    // ─── 오늘의 퀴즈 3개 조회 ─────────────────────────────────────────────────
     @Transactional
     public List<DailyQuizResponse> getTodayQuiz(User user) {
         TargetLevel level = user.getTargetLevel();
