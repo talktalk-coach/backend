@@ -535,3 +535,49 @@ INSERT INTO speeches (user_id, title, audio_url, duration, target_level, status,
 INSERT INTO speech_analysis (speech_id, transcript, accuracy_score, fluency_score, completeness_score, prosody_score, vocabulary_score, word_count, logic_score, sentence_score, structure_score, overall_feedback, created_at) VALUES (LAST_INSERT_ID(), '물론 생명 경시 풍조라는 반론의 타당성도 인정합니다. 그러나 환자의 자기 결정권과 고통 경감이라는 측면을 종합적으로 고려할 때 제도적 보완을 전제로 한 제한적 허용이 결론적으로 합리적입니다.', 89.0, 88.0, 84.0, 91.0, 92.0, 6, 89.0, 89.0, 87.0, '반론 수용 후 전환 접속어를 활용한 재반론까지 중3 심화 담화 성취 기준을 압도적으로 만족한 정점 발화 작품.', '2026-06-28 16:50:00');
 
 -- 7월 ~ 12월 (0개) - 공백 조건 통과
+
+
+-- [1] speeches 테이블 변경 (MIDDLE_3 제외)
+UPDATE speeches
+SET created_at = DATE_SUB(created_at, INTERVAL 1 YEAR)
+WHERE user_id = 6
+  AND target_level <> 'MIDDLE_3'
+  AND YEAR(created_at) = 2026;
+
+-- [2] speech_analysis 테이블 변경 (MIDDLE_3 제외, JOIN 활용)
+UPDATE speech_analysis sa
+    JOIN speeches s ON sa.speech_id = s.speech_id
+SET sa.created_at = DATE_SUB(sa.created_at, INTERVAL 1 YEAR)
+WHERE s.user_id = 6
+  AND s.target_level <> 'MIDDLE_3'
+  AND YEAR(sa.created_at) = 2026;
+
+-- 초등 1~2학년 (ELEM_1_2) -> 2018년
+UPDATE speeches
+SET created_at = STR_TO_DATE(CONCAT('2018-', DATE_FORMAT(created_at, '%m-%d %H:%i:%s')), '%Y-%m-%d %H:%i:%s')
+WHERE user_id = 6 AND target_level = 'ELEM_1_2';
+
+-- 초등 3~4학년 (ELEM_3_4) -> 2020년
+UPDATE speeches
+SET created_at = STR_TO_DATE(CONCAT('2020-', DATE_FORMAT(created_at, '%m-%d %H:%i:%s')), '%Y-%m-%d %H:%i:%s')
+WHERE user_id = 6 AND target_level = 'ELEM_3_4';
+
+-- 초등 5~6학년 (ELEM_5_6) -> 2022년
+UPDATE speeches
+SET created_at = STR_TO_DATE(CONCAT('2022-', DATE_FORMAT(created_at, '%m-%d %H:%i:%s')), '%Y-%m-%d %H:%i:%s')
+WHERE user_id = 6 AND target_level = 'ELEM_5_6';
+
+-- 중등 1~2학년 (MIDDLE_1_2) -> 2024년
+UPDATE speeches
+SET created_at = STR_TO_DATE(CONCAT('2024-', DATE_FORMAT(created_at, '%m-%d %H:%i:%s')), '%Y-%m-%d %H:%i:%s')
+WHERE user_id = 6 AND target_level = 'MIDDLE_1_2';
+
+-- 중등 3학년 (MIDDLE_3) -> 2026년
+UPDATE speeches
+SET created_at = STR_TO_DATE(CONCAT('2026-', DATE_FORMAT(created_at, '%m-%d %H:%i:%s')), '%Y-%m-%d %H:%i:%s')
+WHERE user_id = 6 AND target_level = 'MIDDLE_3';
+
+UPDATE speech_analysis sa
+    JOIN speeches s ON sa.speech_id = s.speech_id
+SET sa.created_at = s.created_at
+WHERE s.user_id = 6;

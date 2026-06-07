@@ -106,15 +106,25 @@ public class SpeechService {
     }
 
     // ─── 목록 조회 ───────────────────────────────────────────────────────
+    // sort 파라미터:
+    //   date_desc (기본값) → 최신순
+    //   date_asc           → 오래된순
+    //   score_desc         → 높은 점수순
+    //   score_asc          → 낮은 점수순
     @Transactional(readOnly = true)
     public SpeechListResponse getMySpeeches(User user, int page, String sort) {
-        Sort sortObj = switch (sort) {
-            case "date_asc" -> Sort.by("createdAt").ascending();
-            default         -> Sort.by("createdAt").descending();
-        };
 
-        Page<Speech> speechPage = speechRepository.findByUser(
-                user, PageRequest.of(page, 10, sortObj));
+        Page<Speech> speechPage;
+        PageRequest pageRequest = PageRequest.of(page, 10);
+
+        speechPage = switch (sort) {
+            case "date_asc"   -> speechRepository.findByUser(
+                    user, PageRequest.of(page, 10, Sort.by("createdAt").ascending()));
+            case "score_desc" -> speechRepository.findByUserOrderByAverageScoreDesc(user, pageRequest);
+            case "score_asc"  -> speechRepository.findByUserOrderByAverageScoreAsc(user, pageRequest);
+            default           -> speechRepository.findByUser(    // date_desc (기본값)
+                    user, PageRequest.of(page, 10, Sort.by("createdAt").descending()));
+        };
 
         List<SpeechListResponse.SpeechSummaryDto> dtos = speechPage.getContent().stream()
                 .map(s -> {
