@@ -16,6 +16,24 @@ public interface SpeechRepository extends JpaRepository<Speech, Long> {
 
     Page<Speech> findByUser(User user, Pageable pageable);
 
+    // score 정렬용: speech_analysis의 평균 점수 JOIN 후 내림차순
+    @Query("SELECT s FROM Speech s LEFT JOIN SpeechAnalysis a ON a.speech = s " +
+           "WHERE s.user = :user " +
+           "ORDER BY (COALESCE(a.accuracyScore,0) + COALESCE(a.fluencyScore,0) + " +
+           "COALESCE(a.prosodyScore,0) + COALESCE(a.vocabularyScore,0) + " +
+           "COALESCE(a.logicScore,0) + COALESCE(a.structureScore,0)) / 6.0 DESC")
+    Page<Speech> findByUserOrderByAverageScoreDesc(
+            @Param("user") User user, Pageable pageable);
+
+    // score 정렬용: speech_analysis의 평균 점수 JOIN 후 오름차순
+    @Query("SELECT s FROM Speech s LEFT JOIN SpeechAnalysis a ON a.speech = s " +
+           "WHERE s.user = :user " +
+           "ORDER BY (COALESCE(a.accuracyScore,0) + COALESCE(a.fluencyScore,0) + " +
+           "COALESCE(a.prosodyScore,0) + COALESCE(a.vocabularyScore,0) + " +
+           "COALESCE(a.logicScore,0) + COALESCE(a.structureScore,0)) / 6.0 ASC")
+    Page<Speech> findByUserOrderByAverageScoreAsc(
+            @Param("user") User user, Pageable pageable);
+
     List<Speech> findTop10ByUserOrderByCreatedAtDesc(User user);
     List<Speech> findTop3ByUserOrderByCreatedAtDesc(User user);
 
